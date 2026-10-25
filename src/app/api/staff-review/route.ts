@@ -67,7 +67,12 @@ export async function GET(req: Request) {
   }
 
   const botToken = process.env.DISCORD_BOT_TOKEN;
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://roblox-os.vercel.app';
+  
+  // Force live Vercel URL so DMs never link to localhost
+  const requestOrigin = new URL(req.url).origin;
+  const siteUrl = requestOrigin.includes('localhost') 
+    ? 'https://roblox-os.vercel.app' 
+    : requestOrigin;
   const dealRoomUrl = `${siteUrl}/middleman`;
 
   if (botToken) {

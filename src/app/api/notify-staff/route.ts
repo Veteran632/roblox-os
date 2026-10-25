@@ -6,8 +6,11 @@ export async function POST(req: Request) {
     const webhookUrl = process.env.DISCORD_STAFF_WEBHOOK_URL;
     const staffRoleId = process.env.DISCORD_STAFF_ROLE_ID;
     
-    // Always use live domain in production
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://roblox-os.vercel.app';
+    // Automatically grab the real domain from the request, and NEVER allow localhost in Discord links
+    const requestOrigin = new URL(req.url).origin;
+    const siteUrl = requestOrigin.includes('localhost') 
+      ? 'https://roblox-os.vercel.app' 
+      : requestOrigin;
 
     if (!webhookUrl) {
       return NextResponse.json({ error: 'Webhook URL not set' }, { status: 500 });
