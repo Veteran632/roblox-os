@@ -19,8 +19,7 @@ import {
   ShieldAlert,
   ExternalLink,
   ShoppingBag,
-  Star,
-  MessageSquare
+  Star
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
@@ -58,20 +57,19 @@ export default function MiddlemanPage() {
   const [copiedCode, setCopiedCode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Review System State
+  // Review & Vouch State
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [hasReviewed, setHasReviewed] = useState(false);
 
-  // New Deal Form State
+  // Create Deal Form State
   const [newTitle, setNewTitle] = useState('');
   const [newAmount, setNewAmount] = useState('');
   const [newGamepassId, setNewGamepassId] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState('');
 
-  // 1. Authentication & Fetch Data
   useEffect(() => {
     const stored = localStorage.getItem('auth_user');
     if (!stored) {
@@ -100,11 +98,10 @@ export default function MiddlemanPage() {
     }
   };
 
-  // 2. Realtime WebSocket Subscription & Fallback Polling (Step 3)
+  // Realtime updates + 5-second polling loop
   useEffect(() => {
     if (!currentUser?.id) return;
 
-    // Realtime Postgres Change Listener
     const channel = supabase
       .channel('realtime_deals')
       .on(
@@ -121,7 +118,6 @@ export default function MiddlemanPage() {
       )
       .subscribe();
 
-    // 5-second automatic fallback polling loop
     const pollingInterval = setInterval(() => {
       fetchDeals(currentUser.id);
     }, 5000);
@@ -132,7 +128,6 @@ export default function MiddlemanPage() {
     };
   }, [currentUser?.id]);
 
-  // Check if current deal has existing review
   useEffect(() => {
     if (!selectedDealId) return;
     const checkReview = async () => {
@@ -154,7 +149,7 @@ export default function MiddlemanPage() {
 
     const isValid = ALLOWED_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext));
     if (!isValid) {
-      setFileError('Direct Studio files only (.rbxl, .rbxlx, .rbxm, .rbxmx)');
+      setFileError('Roblox Studio files only (.rbxl, .rbxlx, .rbxm, .rbxmx)');
       setSelectedFile(null);
       e.target.value = '';
       return;
@@ -244,9 +239,9 @@ export default function MiddlemanPage() {
       setDeals((prev) =>
         prev.map((d) => (d.id === deal.id ? { ...d, status: 'STAFF_VERIFYING', staff_review_result: null } : d))
       );
-      alert('Staff has been pinged in Discord with review action buttons.');
+      alert('Staff has been pinged in Discord with check buttons.');
     } catch (e: any) {
-      alert('Error notifying staff: ' + e.message);
+      alert('Error alerting staff: ' + e.message);
     }
   };
 
@@ -271,9 +266,9 @@ export default function MiddlemanPage() {
       setHasReviewed(true);
       setShowReviewModal(false);
       setReviewComment('');
-      alert('Vouch and reputation review posted!');
+      alert('Vouch posted on the developer profile!');
     } catch (err: any) {
-      alert('Error submitting review: ' + err.message);
+      alert('Error posting review: ' + err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -349,7 +344,7 @@ export default function MiddlemanPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-black tracking-tight mb-1">Automated Middleman</h1>
           <p className="text-xs text-[var(--text-muted)]">
-            Realtime verified escrow. Deliverables remain locked until official Roblox inventory ownership confirms settlement.
+            Developers upload the Studio file and Gamepass ID. Clients verify the buy on Roblox to unlock the file download.
           </p>
         </div>
 
@@ -358,7 +353,7 @@ export default function MiddlemanPage() {
             <FileBox className="w-12 h-12 text-[var(--text-muted)] mx-auto mb-3" />
             <h2 className="text-base font-bold mb-1">No Active Deals</h2>
             <p className="text-xs text-[var(--text-muted)] mb-6 max-w-sm mx-auto">
-              Create a deal room as a Developer or join with a room code.
+              Create a deal room as a Developer or paste a code to join as a Client.
             </p>
             <button
               onClick={() => setShowCreateModal(true)}
@@ -372,7 +367,7 @@ export default function MiddlemanPage() {
             {/* Deals Sidebar */}
             <div className="space-y-3">
               <div className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-2 flex items-center justify-between">
-                <span>Your Contracts ({deals.length})</span>
+                <span>Your Deals ({deals.length})</span>
                 <span className="flex items-center gap-1 text-[10px] text-emerald-400">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> Live
                 </span>
@@ -464,11 +459,11 @@ export default function MiddlemanPage() {
                     </div>
                   </div>
 
-                  {/* Attached Deliverable Box */}
+                  {/* Attached Studio Asset Box */}
                   <div className="py-6 border-b border-[var(--border-color)]">
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                        Attached Studio Deliverable
+                        Attached Studio Asset
                       </span>
                       {activeDeal.staff_verified && (
                         <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
@@ -505,7 +500,7 @@ export default function MiddlemanPage() {
                     </div>
                   </div>
 
-                  {/* Operational Controls & Dynamic Status Banners */}
+                  {/* Middleman Actions & Staff Feedback Card */}
                   <div className="py-6">
                     {activeDeal.status !== 'COMPLETED' && activeDeal.status !== 'DISPUTED' && (
                       <div className="space-y-4">
@@ -514,11 +509,11 @@ export default function MiddlemanPage() {
                             <div className="flex items-start gap-3">
                               <ShoppingBag className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
                               <div>
-                                <div className="font-bold text-sm">Purchase & Verification</div>
+                                <div className="font-bold text-sm">Purchase & Unlock Asset</div>
                                 <p className="text-xs text-[var(--text-muted)] mt-1 leading-relaxed">
-                                  1. Open the Gamepass on Roblox and complete the purchase.<br />
-                                  2. Ensure your Roblox inventory privacy is set to Public.<br />
-                                  3. The room updates in realtime, or click Verify to confirm immediately.
+                                  1. Open the Gamepass on Roblox and buy it.<br />
+                                  2. Make sure your Roblox inventory privacy is set to Public.<br />
+                                  3. The room updates live, or click below to check right away.
                                 </p>
                               </div>
                             </div>
@@ -531,7 +526,7 @@ export default function MiddlemanPage() {
                                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
                               >
                                 <ExternalLink className="w-4 h-4" />
-                                Open Gamepass on Roblox ({activeDeal.amount} R$)
+                                Buy Gamepass on Roblox ({activeDeal.amount} R$)
                               </a>
 
                               <button
@@ -548,13 +543,13 @@ export default function MiddlemanPage() {
                                     });
                                     const result = await res.json();
                                     if (result.verified) {
-                                      alert('Gamepass verified. Download unlocked.');
+                                      alert('Gamepass verified! Asset file unlocked.');
                                       fetchDeals(currentUser.id);
                                     } else {
                                       alert(result.message || result.error || 'Verification failed.');
                                     }
                                   } catch (e: any) {
-                                    alert('Verification check error: ' + e.message);
+                                    alert('Verification error: ' + e.message);
                                   } finally {
                                     setIsSubmitting(false);
                                   }
@@ -567,25 +562,25 @@ export default function MiddlemanPage() {
                               </button>
                             </div>
 
-                            {/* Dynamic Staff Inspection Replacement Cards */}
+                            {/* REPLACES THE YELLOW TEXT WITH APPROVAL / REJECTION */}
                             {activeDeal.status === 'STAFF_VERIFYING' && (
                               <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-center gap-2">
                                 <SearchCheck className="w-4 h-4 shrink-0" />
-                                Staff has been alerted in Discord and is reviewing the file[cite: 22].
+                                Staff has been alerted in Discord and is reviewing the file.
                               </div>
                             )}
 
                             {activeDeal.staff_review_result === 'APPROVED' && (
                               <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 flex items-center gap-2">
                                 <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-                                <strong>Staff Inspection Passed:</strong> Platform moderators opened and approved the `.rbxl` file. It is verified safe for settlement.
+                                <span><strong>Staff Check Passed:</strong> Staff inspected the `.rbxl` file and confirmed it's clean and safe to buy!</span>
                               </div>
                             )}
 
                             {activeDeal.staff_review_result === 'REJECTED' && (
                               <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300 flex items-center gap-2">
                                 <ShieldAlert className="w-4 h-4 shrink-0 text-rose-400" />
-                                <strong>Staff Inspection Failed:</strong> Deliverable was rejected by platform staff. Do not proceed with this transaction.
+                                <span><strong>Staff Check Failed:</strong> Staff rejected this file (broken, empty, or dangerous). Do not buy!</span>
                               </div>
                             )}
 
@@ -596,7 +591,7 @@ export default function MiddlemanPage() {
                                   className="px-4 py-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border-color)] hover:border-blue-500 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                                 >
                                   <SearchCheck className="w-4 h-4 text-blue-400" />
-                                  Verify Files First (Ping Staff)
+                                  Check File First (Ping Staff)
                                 </button>
                               )}
 
@@ -607,7 +602,7 @@ export default function MiddlemanPage() {
                                 }}
                                 className="px-4 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs font-semibold cursor-pointer"
                               >
-                                Cancel / Flag Deal
+                                Flag / Cancel Deal
                               </button>
                             </div>
                           </div>
@@ -616,9 +611,9 @@ export default function MiddlemanPage() {
                             <div className="flex items-start gap-3">
                               <Lock className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
                               <div>
-                                <div className="font-bold text-sm">Escrow Active</div>
+                                <div className="font-bold text-sm">Asset Secured in Middleman Room</div>
                                 <p className="text-xs text-[var(--text-muted)] mt-1">
-                                  Deliverable secured. Awaiting Client completion of Gamepass <span className="font-mono text-blue-400">{activeDeal.gamepass_id}</span> verification.
+                                  Your file is locked. Waiting for Client to buy Gamepass <span className="font-mono text-blue-400">{activeDeal.gamepass_id}</span> on Roblox.
                                 </p>
                               </div>
                             </div>
@@ -627,16 +622,16 @@ export default function MiddlemanPage() {
                       </div>
                     )}
 
-                    {/* COMPLETED Deal State with Review & Vouch Trigger */}
+                    {/* COMPLETED Deal State */}
                     {activeDeal.status === 'COMPLETED' && (
                       <div className="space-y-4">
                         <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between flex-wrap gap-4">
                           <div className="flex items-center gap-3">
                             <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
                             <div>
-                              <div className="text-xs font-bold text-emerald-300">Payment Confirmed & File Released</div>
+                              <div className="text-xs font-bold text-emerald-300">Deal Completed & File Unlocked</div>
                               <p className="text-[11px] text-[var(--text-muted)]">
-                                Transaction settled. Full download access granted for `{activeDeal.file_name}`.
+                                Gamepass purchase confirmed. Download access unlocked for `{activeDeal.file_name}`.
                               </p>
                             </div>
                           </div>
@@ -647,7 +642,7 @@ export default function MiddlemanPage() {
                               className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
                             >
                               <Star className="w-4 h-4 fill-black" />
-                              Leave Verified Review & Vouch
+                              Leave Vouch & Rating
                             </button>
                           )}
                         </div>
@@ -655,7 +650,7 @@ export default function MiddlemanPage() {
                         {hasReviewed && (
                           <div className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)] text-xs text-[var(--text-muted)] flex items-center gap-2">
                             <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-                            <span>You submitted a verified review for this developer's platform profile.</span>
+                            <span>You already posted a vouch for this developer!</span>
                           </div>
                         )}
                       </div>
@@ -665,8 +660,8 @@ export default function MiddlemanPage() {
                       <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-3">
                         <ShieldAlert className="w-5 h-5 text-rose-400 shrink-0" />
                         <div>
-                          <span className="text-xs font-bold text-rose-300">Deal Flagged / Rejected</span>
-                          <p className="text-[11px] text-[var(--text-muted)]">File download and payout frozen pending further staff action.</p>
+                          <span className="text-xs font-bold text-rose-300">Deal Flagged / On Hold</span>
+                          <p className="text-[11px] text-[var(--text-muted)]">File download and payout are locked pending staff review.</p>
                         </div>
                       </div>
                     )}
@@ -675,7 +670,7 @@ export default function MiddlemanPage() {
 
                 <div className="pt-4 border-t border-[var(--border-color)] flex items-center justify-between text-[11px] text-[var(--text-muted)]">
                   <span>Role: {isDeveloper ? 'Developer (Seller)' : 'Client (Buyer)'}</span>
-                  <span>Roblox Inventory API • Realtime WebSockets Active</span>
+                  <span>Roblox Middleman • Live Updates</span>
                 </div>
               </div>
             )}
@@ -687,18 +682,18 @@ export default function MiddlemanPage() {
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <h3 className="text-xl font-bold mb-1">Create Developer Deal</h3>
+            <h3 className="text-xl font-bold mb-1">Create Middleman Deal</h3>
             <p className="text-xs text-[var(--text-muted)] mb-5">
-              Upload the asset file and enter the Gamepass ID for payment verification.
+              Upload your Studio asset and enter the Gamepass ID for payment verification.
             </p>
 
             <form onSubmit={handleCreateDealWithFile} className="space-y-4 text-xs">
               <div>
-                <label className="block font-bold mb-1.5">Commission Title</label>
+                <label className="block font-bold mb-1.5">Asset / Commission Title</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Combat System Framework"
+                  placeholder="e.g. Combat System & Animations"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   className="w-full bg-[var(--bg-elevated)] border border-[var(--border-color)] rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-blue-500"
@@ -732,11 +727,11 @@ export default function MiddlemanPage() {
               </div>
 
               <div>
-                <label className="block font-bold mb-1.5">Attach Studio Deliverable (.rbxl, .rbxm)</label>
+                <label className="block font-bold mb-1.5">Upload Studio Asset (.rbxl, .rbxm)</label>
                 <label className="flex flex-col items-center justify-center border-2 border-dashed border-[var(--border-color)] hover:border-blue-500 rounded-xl p-4 cursor-pointer">
                   <Upload className="w-5 h-5 text-[var(--text-muted)] mb-1" />
                   <span className="text-xs font-semibold">
-                    {selectedFile ? selectedFile.name : 'Select .rbxl or .rbxm file'}
+                    {selectedFile ? selectedFile.name : 'Choose .rbxl or .rbxm file'}
                   </span>
                   <input type="file" required accept=".rbxl,.rbxlx,.rbxm,.rbxmx" onChange={handleFileChange} className="hidden" />
                 </label>
@@ -756,7 +751,7 @@ export default function MiddlemanPage() {
                   disabled={isSubmitting || !selectedFile}
                   className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold disabled:opacity-50 cursor-pointer"
                 >
-                  {isSubmitting ? 'Uploading...' : 'Create Deal Room'}
+                  {isSubmitting ? 'Uploading...' : 'Create Middleman Room'}
                 </button>
               </div>
             </form>
@@ -764,16 +759,16 @@ export default function MiddlemanPage() {
         </div>
       )}
 
-      {/* REVIEWS & VOUCH MODAL (Step 1) */}
+      {/* VOUCH & RATING MODAL */}
       {showReviewModal && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl max-w-md w-full p-6 shadow-2xl">
             <h3 className="text-xl font-bold mb-1 flex items-center gap-2">
               <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
-              Leave a Verified Vouch
+              Leave a Vouch
             </h3>
             <p className="text-xs text-[var(--text-muted)] mb-5">
-              Rate your commission experience with {activeDeal.creator_discord_username}. This review is bound to this completed escrow record on the blockchain ledger.
+              Rate your experience with {activeDeal.creator_discord_username}. This vouch goes straight to their public profile!
             </p>
 
             <form onSubmit={handleSubmitReview} className="space-y-4 text-xs">
@@ -801,11 +796,11 @@ export default function MiddlemanPage() {
               </div>
 
               <div>
-                <label className="block font-bold mb-1.5">Your Feedback / Vouch</label>
+                <label className="block font-bold mb-1.5">Vouch Feedback</label>
                 <textarea
                   required
                   rows={4}
-                  placeholder="How was the communication, file quality, and speed of delivery?"
+                  placeholder="How was the file quality, speed, and communication?"
                   value={reviewComment}
                   onChange={(e) => setReviewComment(e.target.value)}
                   className="w-full bg-[var(--bg-elevated)] border border-[var(--border-color)] rounded-xl p-3 focus:outline-none focus:border-blue-500"
@@ -825,7 +820,7 @@ export default function MiddlemanPage() {
                   disabled={isSubmitting}
                   className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold disabled:opacity-50 cursor-pointer"
                 >
-                  {isSubmitting ? 'Submitting...' : 'Post Verified Vouch'}
+                  {isSubmitting ? 'Posting...' : 'Post Vouch'}
                 </button>
               </div>
             </form>

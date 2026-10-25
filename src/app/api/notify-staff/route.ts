@@ -5,6 +5,8 @@ export async function POST(req: Request) {
     const { dealCode, title, fileName, fileUrl, requestedBy } = await req.json();
     const webhookUrl = process.env.DISCORD_STAFF_WEBHOOK_URL;
     const staffRoleId = process.env.DISCORD_STAFF_ROLE_ID;
+    
+    // Always use live domain in production
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://roblox-os.vercel.app';
 
     if (!webhookUrl) {
@@ -16,25 +18,25 @@ export async function POST(req: Request) {
 
     const payload = {
       content: staffRoleId
-        ? `<@&${staffRoleId}> 🚨 **New Studio File Verification Request!**`
-        : `🚨 **New Studio File Verification Request!**`,
+        ? `<@&${staffRoleId}> 🚨 **New File Check Request!**`
+        : `🚨 **New File Check Request!**`,
       embeds: [
         {
-          title: `File Verification Request: ${dealCode}`,
-          description: `A participant requested staff to review this deliverable for empty baseplates, backdoors, or malicious scripts.`,
+          title: `File Check Request: ${dealCode}`,
+          description: `A user asked staff to check this asset for backdoors, empty baseplates, or stolen scripts.`,
           color: 0xf59e0b,
           fields: [
             { name: 'Commission', value: title, inline: true },
             { name: 'Requested By', value: requestedBy, inline: true },
-            { name: 'File Asset', value: fileName, inline: false },
-            { name: 'Inspect Deliverable', value: `[Direct .rbxl Download](${fileUrl})`, inline: false },
+            { name: 'Asset File', value: fileName, inline: false },
+            { name: 'Download File', value: `[Direct .rbxl Download](${fileUrl})`, inline: false },
             { 
-              name: 'Staff Moderation Actions', 
-              value: `[✅ Approve Deliverable](${approveUrl}) • [❌ Reject Deliverable](${rejectUrl})`, 
+              name: 'Staff Action', 
+              value: `[✅ Approve Asset](${approveUrl}) • [❌ Reject Asset](${rejectUrl})`, 
               inline: false 
             },
           ],
-          footer: { text: 'Roblox OS Security Ledger' },
+          footer: { text: 'Roblox OS • Middleman Safety' },
           timestamp: new Date().toISOString(),
         },
       ],
@@ -45,19 +47,19 @@ export async function POST(req: Request) {
             {
               type: 2,
               style: 5,
-              label: 'Inspect File (.rbxl)',
+              label: 'Inspect Asset (.rbxl)',
               url: fileUrl,
             },
             {
               type: 2,
               style: 5,
-              label: '✅ Approve File',
+              label: '✅ Approve Asset',
               url: approveUrl,
             },
             {
               type: 2,
               style: 5,
-              label: '❌ Reject File',
+              label: '❌ Reject Asset',
               url: rejectUrl,
             },
           ],
