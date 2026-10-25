@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
   ShieldCheck, 
-  Wrench, 
   Lock, 
   Settings, 
   Moon, 
@@ -41,7 +40,6 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   useEffect(() => {
-    // Check localStorage for saved session
     const stored = localStorage.getItem('auth_user');
     if (stored) {
       try {
@@ -52,8 +50,10 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const isFullyVerified = Boolean(currentUser?.id && currentUser?.robloxId);
+
   const handleProtectedNavigation = (e: React.MouseEvent, path: string) => {
-    if (!currentUser) {
+    if (!isFullyVerified) {
       e.preventDefault();
       router.push('/login');
     }
@@ -75,13 +75,9 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
       className={`${theme === 'dark' ? 'theme-dark' : 'theme-light'} min-h-screen flex flex-col justify-between font-sans transition-colors duration-200`}
       style={{ backgroundColor: 'var(--bg-main)', color: 'var(--text-main)' }}
     >
-      {/* NAVBAR */}
       <nav
         className="sticky top-0 z-50 border-b backdrop-blur-md px-6 py-3.5"
-        style={{
-          backgroundColor: 'var(--bg-nav)',
-          borderColor: 'var(--border-color)',
-        }}
+        style={{ backgroundColor: 'var(--bg-nav)', borderColor: 'var(--border-color)' }}
       >
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 font-black text-xl tracking-wider">
@@ -93,28 +89,16 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
 
           <div className="flex items-center gap-8">
             <div className="hidden md:flex items-center gap-7 text-sm font-medium">
-              <Link 
-                href="/middleman" 
-                onClick={(e) => handleProtectedNavigation(e, '/middleman')}
-                className="hover:text-blue-400 transition-colors"
-              >
+              <Link href="/middleman" onClick={(e) => handleProtectedNavigation(e, '/middleman')} className="hover:text-blue-400 transition-colors">
                 Middleman
               </Link>
-              <Link 
-                href="/wip" 
-                onClick={(e) => handleProtectedNavigation(e, '/wip')}
-                className="flex items-center gap-1.5 hover:text-blue-400 transition-colors"
-              >
+              <Link href="/wip" onClick={(e) => handleProtectedNavigation(e, '/wip')} className="flex items-center gap-1.5 hover:text-blue-400 transition-colors">
                 Marketplace
                 <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)', borderColor: 'var(--border-color)' }}>
                   WIP
                 </span>
               </Link>
-              <Link 
-                href="/wip" 
-                onClick={(e) => handleProtectedNavigation(e, '/wip')}
-                className="flex items-center gap-1.5 hover:text-blue-400 transition-colors"
-              >
+              <Link href="/wip" onClick={(e) => handleProtectedNavigation(e, '/wip')} className="flex items-center gap-1.5 hover:text-blue-400 transition-colors">
                 Hire
                 <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)', borderColor: 'var(--border-color)' }}>
                   WIP
@@ -126,7 +110,7 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
             </div>
 
             <div className="relative">
-              {currentUser ? (
+              {isFullyVerified ? (
                 <div>
                   <button
                     onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -148,25 +132,18 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
                             <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                           </div>
                           <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
-                            Discord Verified
+                            roblox: @{currentUser.robloxUsername}
                           </p>
                         </div>
                       </div>
 
                       <div className="py-2 flex flex-col gap-1 text-sm">
-                        <Link 
-                          href="/settings" 
-                          onClick={() => setDropdownOpen(false)}
-                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:opacity-80 transition-opacity"
-                        >
+                        <Link href="/settings" onClick={() => setDropdownOpen(false)} className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:opacity-80 transition-opacity">
                           <Settings className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
                           Settings
                         </Link>
                         
-                        <button 
-                          onClick={toggleTheme}
-                          className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:opacity-80 transition-opacity text-left cursor-pointer"
-                        >
+                        <button onClick={toggleTheme} className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:opacity-80 transition-opacity text-left cursor-pointer">
                           <span className="flex items-center gap-2.5">
                             {theme === 'dark' ? <Moon className="w-4 h-4" style={{ color: 'var(--text-muted)' }} /> : <Sun className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />}
                             Theme
@@ -176,10 +153,7 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
                       </div>
 
                       <div className="pt-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
-                        <button 
-                          onClick={handleSignOut}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-rose-400 hover:bg-rose-500/10 transition-colors text-sm cursor-pointer"
-                        >
+                        <button onClick={handleSignOut} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-rose-400 hover:bg-rose-500/10 transition-colors text-sm cursor-pointer">
                           <LogOut className="w-4 h-4" />
                           Sign Out
                         </button>
@@ -188,11 +162,8 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
                   )}
                 </div>
               ) : (
-                <Link 
-                  href="/login"
-                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-all cursor-pointer inline-block"
-                >
-                  Log In
+                <Link href="/login" className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-all cursor-pointer inline-block">
+                  {currentUser ? 'Finish Linking' : 'Log In'}
                 </Link>
               )}
             </div>
@@ -200,11 +171,8 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
         </div>
       </nav>
 
-      <main className="flex-1">
-        {children}
-      </main>
+      <main className="flex-1">{children}</main>
 
-      {/* FOOTER */}
       <footer className="border-t mt-20 py-12 px-6" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)', color: 'var(--text-muted)' }}>
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
           <div className="md:col-span-2">

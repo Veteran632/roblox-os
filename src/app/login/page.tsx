@@ -1,31 +1,41 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Lock } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft, Lock, CheckCircle2, ArrowRight } from 'lucide-react';
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('auth_user');
+    if (stored) {
+      try {
+        setUser(JSON.parse(stored));
+      } catch (e) {
+        localStorage.removeItem('auth_user');
+      }
+    }
+  }, []);
+
+  const hasDiscord = Boolean(user?.id && user?.username);
+  const hasRoblox = Boolean(user?.robloxId && user?.robloxUsername);
+  const isFullyVerified = hasDiscord && hasRoblox;
+
   const handleDiscordLogin = () => {
     const clientId = process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID;
     const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
     const redirectUri = encodeURIComponent(`${siteUrl}/api/auth/discord/callback`);
-    
-    // Discord OAuth URL requesting user identity
-    const discordAuthUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&scope=identify+guilds`;
-    
-    // For local test fallback if credentials are not filled yet:
-    if (!clientId) {
-      localStorage.setItem('auth_user', JSON.stringify({
-        id: '1234567890',
-        username: 'DiscordUser',
-        discriminator: '0',
-        avatar: null,
-      }));
-      window.location.href = '/middleman';
-      return;
-    }
+    window.location.href = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&scope=identify`;
+  };
 
-    window.location.href = discordAuthUrl;
+  const handleRobloxLogin = () => {
+    const clientId = process.env.NEXT_PUBLIC_ROBLOX_CLIENT_ID;
+    const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+    const redirectUri = encodeURIComponent(`${siteUrl}/api/auth/roblox/callback`);
+    window.location.href = `https://apis.roblox.com/oauth/v1/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=openid+profile&response_type=code`;
   };
 
   return (
@@ -40,33 +50,53 @@ export default function LoginPage() {
           <Lock className="w-6 h-6" />
         </div>
 
-        <h1 className="text-2xl font-black mb-2">Connect Your Identity</h1>
+        <h1 className="text-2xl font-black mb-2">Compulsory Dual Verification</h1>
         <p className="text-xs text-[var(--text-muted)] mb-8 leading-relaxed">
-          Link your Discord to access the Automated Middleman, create verified deals, and participate in commissions.
+          Both your Discord and Roblox accounts are strictly required to use the Automated Middleman and verify in-game payments.
         </p>
 
-        <div className="space-y-3">
-          {/* Discord Button */}
+        <div className="space-y-3 text-left">
+          {/* Step 1: Discord */}
           <button
             onClick={handleDiscordLogin}
-            className="w-full py-3 px-4 rounded-xl bg-[#5865F2] hover:bg-[#4752C4] text-white font-semibold text-xs flex items-center justify-center gap-2.5 transition-all cursor-pointer shadow-md"
+            className={`w-full py-3.5 px-4 rounded-xl font-semibold text-xs flex items-center justify-between transition-all cursor-pointer border ${
+              hasDiscord
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                : 'bg-[#5865F2] hover:bg-[#4752C4] border-transparent text-white shadow-md'
+            }`}
           >
-            <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-              <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
-            </svg>
-            Continue with Discord
+            <span className="flex items-center gap-2.5">
+              <span>1. {hasDiscord ? `Discord: ${user.username}` : 'Connect Discord Account'}</span>
+            </span>
+            {hasDiscord ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <span className="text-[10px] uppercase font-bold opacity-80">Required</span>}
           </button>
 
-          {/* Roblox Button (WIP/Coming Step 2) */}
+          {/* Step 2: Roblox */}
           <button
-            disabled
-            className="w-full py-3 px-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)] text-[var(--text-muted)] font-semibold text-xs flex items-center justify-center gap-2.5 cursor-not-allowed opacity-60"
+            onClick={handleRobloxLogin}
+            className={`w-full py-3.5 px-4 rounded-xl font-semibold text-xs flex items-center justify-between transition-all cursor-pointer border ${
+              hasRoblox
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                : 'bg-blue-600 hover:bg-blue-500 border-transparent text-white shadow-md'
+            }`}
           >
-            <span>Roblox OAuth2 (Coming with Bloxlink)</span>
+            <span className="flex items-center gap-2.5">
+              <span>2. {hasRoblox ? `Roblox: @${user.robloxUsername}` : 'Connect Roblox Account'}</span>
+            </span>
+            {hasRoblox ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <span className="text-[10px] uppercase font-bold opacity-80">Required</span>}
           </button>
         </div>
 
-        {/* Legal Disclaimer */}
+        {/* Enter Platform Button once BOTH are connected */}
+        {isFullyVerified && (
+          <button
+            onClick={() => router.push('/middleman')}
+            className="w-full mt-6 py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs flex items-center justify-center gap-2 cursor-pointer transition-all"
+          >
+            Enter Automated Middleman <ArrowRight className="w-4 h-4" />
+          </button>
+        )}
+
         <p className="text-[11px] text-[var(--text-muted)] mt-8 leading-normal border-t border-[var(--border-color)] pt-5">
           By continuing, you agree to our{' '}
           <Link href="/tos" className="text-blue-400 hover:underline">
