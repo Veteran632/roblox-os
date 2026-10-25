@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
@@ -11,8 +11,11 @@ import {
   Sun, 
   LogOut, 
   ExternalLink,
-  User
+  User,
+  Search,
+  ArrowRight
 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 export function RobloxVerifiedBadge({ className = "w-4 h-4" }: { className?: string }) {
   return (
@@ -33,11 +36,23 @@ export function RobloxVerifiedBadge({ className = "w-4 h-4" }: { className?: str
   );
 }
 
+interface SearchResult {
+  discord_username: string;
+  roblox_username: string;
+  deals_count: number;
+}
+
 export default function SiteShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
+  // Search Bar State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem('auth_user');
@@ -48,7 +63,75 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
         localStorage.removeItem('auth_user');
       }
     }
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Central User Search Handler
+  useEffect(() => {
+    if (!searchQuery.trim() || searchQuery.length < 2) {
+      setSearchResults([]);
+      setSearchOpen(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      const cleanQ = searchQuery.trim().toLowerCase();
+
+      const { data } = await supabase
+        .from('deals')
+        .select('creator_discord_username, creator_roblox_username, partner_discord_username, partner_roblox_username')
+        .or(
+          `creator_discord_username.ilike.%${cleanQ}%,creator_roblox_username.ilike.%${cleanQ}%,partner_discord_username.ilike.%${cleanQ}%,partner_roblox_username.ilike.%${cleanQ}%`
+        )
+        .limit(20);
+
+      if (data) {
+        const userMap = new Map<string, SearchResult>();
+
+        data.forEach((row) => {
+          if (row.creator_roblox_username && row.creator_roblox_username !== 'Developer') {
+            const key = row.creator_roblox_username.toLowerCase();
+            const existing = userMap.get(key) || {
+              discord_username: row.creator_discord_username,
+              roblox_username: row.creator_roblox_username,
+              deals_count: 0,
+            };
+            existing.deals_count += 1;
+            userMap.set(key, existing);
+          }
+          if (row.partner_roblox_username && row.partner_roblox_username !== 'Client') {
+            const key = row.partner_roblox_username.toLowerCase();
+            const existing = userMap.get(key) || {
+              discord_username: row.partner_discord_username || '',
+              roblox_username: row.partner_roblox_username,
+              deals_count: 0,
+            };
+            existing.deals_count += 1;
+            userMap.set(key, existing);
+          }
+        });
+
+        const list = Array.from(userMap.values());
+        setSearchResults(list);
+        setSearchOpen(list.length > 0);
+      }
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleSelectUser = (robloxUsername: string) => {
+    setSearchOpen(false);
+    setSearchQuery('');
+    router.push(`/u/${encodeURIComponent(robloxUsername)}`);
+  };
 
   const isFullyVerified = Boolean(currentUser?.id && currentUser?.robloxId);
 
@@ -79,16 +162,72 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
         className="sticky top-0 z-50 border-b backdrop-blur-md px-6 py-3.5"
         style={{ backgroundColor: 'var(--bg-nav)', borderColor: 'var(--border-color)' }}
       >
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 font-black text-xl tracking-wider">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-6">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2 font-black text-xl tracking-wider shrink-0">
             <div className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400">
               <Lock className="w-4 h-4" />
             </div>
             <span>LOGO</span>
           </Link>
 
+          {/* Central Search Bar */}
+          <div ref={searchContainerRef} className="relative flex-1 max-w-md hidden md:block">
+            <div className="relative flex items-center">
+              <Search className="absolute left-3.5 w-4 h-4 text-[var(--text-muted)] pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search user by Discord or Roblox username..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => searchResults.length > 0 && setSearchOpen(true)}
+                className="w-full bg-[var(--bg-elevated)] border border-[var(--border-color)] focus:border-blue-500 rounded-xl pl-10 pr-4 py-2 text-xs focus:outline-none transition-all placeholder:text-[var(--text-muted)]"
+              />
+            </div>
+
+            {/* Live Autocomplete Results */}
+            {searchOpen && (
+              <div 
+                className="absolute left-0 right-0 top-full mt-2 rounded-xl border shadow-2xl overflow-hidden py-1.5 z-50"
+                style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)' }}
+              >
+                <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] border-b" style={{ borderColor: 'var(--border-color)' }}>
+                  Matching Developers & Clients
+                </div>
+                {searchResults.map((u) => (
+                  <button
+                    key={u.roblox_username}
+                    onClick={() => handleSelectUser(u.roblox_username)}
+                    className="w-full px-3.5 py-2.5 flex items-center justify-between hover:opacity-80 text-left transition-opacity cursor-pointer border-b last:border-b-0"
+                    style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)' }}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center font-bold text-blue-400 text-xs">
+                        {u.roblox_username.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="font-bold text-xs flex items-center gap-1.5">
+                          @{u.roblox_username}
+                          <RobloxVerifiedBadge className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="text-[11px] text-[var(--text-muted)]">
+                          Discord: {u.discord_username || 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 text-[11px] text-[var(--text-muted)] font-mono">
+                      <span>{u.deals_count} deal{u.deals_count > 1 ? 's' : ''}</span>
+                      <ArrowRight className="w-3 h-3 text-[var(--text-muted)]" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Right Navigation & Profile */}
           <div className="flex items-center gap-8">
-            <div className="hidden md:flex items-center gap-7 text-sm font-medium">
+            <div className="hidden lg:flex items-center gap-7 text-sm font-medium">
               <Link href="/middleman" onClick={(e) => handleProtectedNavigation(e, '/middleman')} className="hover:text-blue-400 transition-colors">
                 Middleman
               </Link>
@@ -138,6 +277,16 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
                       </div>
 
                       <div className="py-2 flex flex-col gap-1 text-sm">
+                        {/* Direct link to own public profile & vouches */}
+                        <Link 
+                          href={`/u/${encodeURIComponent(currentUser.robloxUsername || currentUser.username)}`} 
+                          onClick={() => setDropdownOpen(false)} 
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:opacity-80 transition-opacity text-blue-400 font-semibold"
+                        >
+                          <User className="w-4 h-4" />
+                          View Public Profile & Vouches
+                        </Link>
+
                         <Link href="/settings" onClick={() => setDropdownOpen(false)} className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:opacity-80 transition-opacity">
                           <Settings className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
                           Settings
