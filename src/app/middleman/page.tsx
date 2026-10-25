@@ -15,15 +15,12 @@ import {
   Copy, 
   Check, 
   SearchCheck, 
-  Gamepad2, 
   Download, 
   ShieldAlert,
-  ExternalLink
+  ExternalLink,
+  ShoppingBag
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-
-// REPLACE THIS WITH YOUR ROBLOX EXPERIENCE PLACE ID:
-const ROBLOX_PLACE_ID = "18513443246";
 
 interface Deal {
   id: string;
@@ -58,7 +55,6 @@ export default function MiddlemanPage() {
   const [copiedCode, setCopiedCode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // New Deal Form State
   const [newTitle, setNewTitle] = useState('');
   const [newAmount, setNewAmount] = useState('');
   const [newGamepassId, setNewGamepassId] = useState('');
@@ -72,7 +68,7 @@ export default function MiddlemanPage() {
       return;
     }
     const parsed = JSON.parse(stored);
-    if (!parsed.id) {
+    if (!parsed.id || !parsed.robloxId) {
       router.push('/login');
       return;
     }
@@ -100,7 +96,7 @@ export default function MiddlemanPage() {
 
     const isValid = ALLOWED_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext));
     if (!isValid) {
-      setFileError('Direct Roblox Studio files only (.rbxl, .rbxlx, .rbxm, .rbxmx)');
+      setFileError('Direct Studio files only (.rbxl, .rbxlx, .rbxm, .rbxmx)');
       setSelectedFile(null);
       e.target.value = '';
       return;
@@ -190,7 +186,7 @@ export default function MiddlemanPage() {
       setDeals((prev) =>
         prev.map((d) => (d.id === deal.id ? { ...d, status: 'STAFF_VERIFYING' } : d))
       );
-      alert('Staff has been pinged in Discord to inspect the Studio file!');
+      alert('Staff has been pinged in Discord to inspect the deliverable.');
     } catch (e: any) {
       alert('Error notifying staff: ' + e.message);
     }
@@ -198,7 +194,6 @@ export default function MiddlemanPage() {
 
   const activeDeal = deals.find((d) => d.id === selectedDealId) || deals[0];
 
-  // Specific role resolution
   const isDeveloper = Boolean(currentUser && activeDeal && currentUser.id === activeDeal.creator_discord_id);
   const isClient = Boolean(currentUser && activeDeal && !isDeveloper);
 
@@ -206,11 +201,6 @@ export default function MiddlemanPage() {
     navigator.clipboard.writeText(code);
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 1500);
-  };
-
-  // Direct Roblox deep-link launcher with launchData
-  const getRobloxLaunchUrl = (code: string) => {
-    return `roblox://experiences/start?placeId=${ROBLOX_PLACE_ID}&launchData=${encodeURIComponent(code)}`;
   };
 
   return (
@@ -222,7 +212,6 @@ export default function MiddlemanPage() {
           </Link>
 
           <div className="flex items-center gap-3">
-            {/* Client Join Box */}
             <div className="flex items-center bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl px-3 py-1.5">
               <KeyRound className="w-4 h-4 text-[var(--text-muted)] mr-2" />
               <input
@@ -236,11 +225,11 @@ export default function MiddlemanPage() {
                 onClick={async () => {
                   const { data } = await supabase.from('deals').select('*').eq('code', joinCodeInput.trim()).single();
                   if (!data) {
-                    alert('Deal code not found!');
+                    alert('Deal code not found.');
                     return;
                   }
                   if (data.creator_discord_id === currentUser.id) {
-                    alert('You created this deal as the Developer!');
+                    alert('You created this deal as the Developer.');
                     return;
                   }
                   await supabase
@@ -272,7 +261,7 @@ export default function MiddlemanPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-black tracking-tight mb-1">Automated Middleman</h1>
           <p className="text-xs text-[var(--text-muted)]">
-            Developers upload the `.rbxl` file and Gamepass ID upfront. Clients buy the Gamepass inside our Roblox Hub to automatically unlock the file download.
+            Developers upload the `.rbxl` file and specify the Gamepass ID. Clients verify purchase through the official Roblox API to unlock the download.
           </p>
         </div>
 
@@ -281,7 +270,7 @@ export default function MiddlemanPage() {
             <FileBox className="w-12 h-12 text-[var(--text-muted)] mx-auto mb-3" />
             <h2 className="text-base font-bold mb-1">No Active Deals</h2>
             <p className="text-xs text-[var(--text-muted)] mb-6 max-w-sm mx-auto">
-              Create a deal as a Developer or paste a room code top-right to join as a Client.
+              Create a deal room as a Developer or join with a room code.
             </p>
             <button
               onClick={() => setShowCreateModal(true)}
@@ -292,7 +281,6 @@ export default function MiddlemanPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Sidebar */}
             <div className="space-y-3">
               <div className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-2">
                 Your Deals ({deals.length})
@@ -325,7 +313,6 @@ export default function MiddlemanPage() {
               })}
             </div>
 
-            {/* Right Column: Role-Isolated Deal Room */}
             {activeDeal && (
               <div className="lg:col-span-2 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-6 md:p-8 flex flex-col justify-between">
                 <div>
@@ -356,7 +343,6 @@ export default function MiddlemanPage() {
                     </div>
                   </div>
 
-                  {/* Participants */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-6 border-b border-[var(--border-color)] text-xs">
                     <div className="p-3.5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)]">
                       <div className="text-[var(--text-muted)] mb-1">Developer (Seller)</div>
@@ -379,13 +365,12 @@ export default function MiddlemanPage() {
                             </span>
                           </>
                         ) : (
-                          'Waiting for Client to join via code...'
+                          'Waiting for Client to join with code...'
                         )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Studio Deliverable Box */}
                   <div className="py-6 border-b border-[var(--border-color)]">
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
@@ -393,7 +378,7 @@ export default function MiddlemanPage() {
                       </span>
                       {activeDeal.staff_verified && (
                         <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                          <ShieldCheck className="w-4 h-4" /> Staff Verified Contents
+                          <ShieldCheck className="w-4 h-4" /> Staff Verified
                         </span>
                       )}
                     </div>
@@ -407,7 +392,6 @@ export default function MiddlemanPage() {
                         </div>
                       </div>
 
-                      {/* Download Gate: Developer can redownload; Client can ONLY download when COMPLETED */}
                       {isDeveloper || activeDeal.status === 'COMPLETED' ? (
                         <a
                           href={activeDeal.file_url}
@@ -421,45 +405,77 @@ export default function MiddlemanPage() {
                       ) : (
                         <div className="px-3.5 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold flex items-center gap-1.5">
                           <Lock className="w-3.5 h-3.5" />
-                          Locked — Purchase Pass in Hub to Unlock
+                          Locked Until Gamepass Verified
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Action Controls */}
                   <div className="py-6">
                     {activeDeal.status !== 'COMPLETED' && activeDeal.status !== 'DISPUTED' && (
                       <div className="space-y-4">
                         {isClient ? (
-                          /* CLIENT-ONLY UI WITH THE "OPEN ROBLOX & PAY" BUTTON */
                           <div className="p-5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)] space-y-4">
                             <div className="flex items-start gap-3">
-                              <Gamepad2 className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+                              <ShoppingBag className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
                               <div>
-                                <div className="font-bold text-sm">Client Action: Pay in Roblox Hub to Auto-Unlock</div>
+                                <div className="font-bold text-sm">Purchase & Verification</div>
                                 <p className="text-xs text-[var(--text-muted)] mt-1 leading-relaxed">
-                                  Click below to launch the Roblox Hub game directly with deal code <span className="text-blue-400 font-mono font-bold">{activeDeal.code}</span>. Once you confirm the pass purchase inside the game, this file unlocks immediately.
+                                  1. Open the Gamepass on Roblox and complete the purchase.<br />
+                                  2. Ensure your Roblox inventory privacy is set to Public.<br />
+                                  3. Click Verify to check ownership and unlock the download link.
                                 </p>
                               </div>
                             </div>
 
-                            {/* THE MISSING LAUNCH BUTTON */}
-                            <div className="pt-2">
+                            <div className="flex flex-wrap items-center gap-3 pt-2">
                               <a
-                                href={getRobloxLaunchUrl(activeDeal.code)}
-                                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-lg shadow-blue-500/20 transition-all cursor-pointer"
+                                href={`https://www.roblox.com/game-pass/${activeDeal.gamepass_id}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
                               >
-                                <Gamepad2 className="w-4 h-4" />
-                                Open Roblox & Pay (Code: {activeDeal.code})
-                                <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+                                <ExternalLink className="w-4 h-4" />
+                                Open Gamepass on Roblox ({activeDeal.amount} R$)
                               </a>
+
+                              <button
+                                onClick={async () => {
+                                  setIsSubmitting(true);
+                                  try {
+                                    const res = await fetch('/api/verify-gamepass', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        dealCode: activeDeal.code,
+                                        buyerRobloxId: currentUser.robloxId,
+                                      }),
+                                    });
+                                    const result = await res.json();
+                                    if (result.verified) {
+                                      alert('Gamepass verified. Download unlocked.');
+                                      fetchDeals(currentUser.id);
+                                    } else {
+                                      alert(result.message || result.error || 'Verification failed.');
+                                    }
+                                  } catch (e: any) {
+                                    alert('Verification check error: ' + e.message);
+                                  } finally {
+                                    setIsSubmitting(false);
+                                  }
+                                }}
+                                disabled={isSubmitting}
+                                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                                {isSubmitting ? 'Checking Roblox API...' : 'Verify Purchase & Unlock File'}
+                              </button>
                             </div>
 
                             {activeDeal.status === 'STAFF_VERIFYING' && (
                               <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-center gap-2">
                                 <SearchCheck className="w-4 h-4 shrink-0" />
-                                Staff has been pinged in Discord and is inspecting the `.rbxl` file right now.
+                                Staff has been alerted in Discord and is reviewing the file.
                               </div>
                             )}
 
@@ -486,14 +502,13 @@ export default function MiddlemanPage() {
                             </div>
                           </div>
                         ) : (
-                          /* DEVELOPER-ONLY UI */
                           <div className="p-5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)] flex items-center justify-between gap-4">
                             <div className="flex items-start gap-3">
                               <Lock className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
                               <div>
-                                <div className="font-bold text-sm">Developer View: File Secured in Escrow</div>
+                                <div className="font-bold text-sm">Escrow Active</div>
                                 <p className="text-xs text-[var(--text-muted)] mt-1">
-                                  The Client cannot download your `.rbxl` file yet. The moment they buy Gamepass <span className="font-mono text-blue-400">{activeDeal.gamepass_id}</span> inside the Roblox Hub game, the deal will auto-complete and log to Staff.
+                                  Deliverable locked. Awaiting Client completion of Gamepass <span className="font-mono text-blue-400">{activeDeal.gamepass_id}</span> verification.
                                 </p>
                               </div>
                             </div>
@@ -504,11 +519,11 @@ export default function MiddlemanPage() {
 
                     {activeDeal.status === 'COMPLETED' && (
                       <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-3">
-                        <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                        <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
                         <div>
-                          <div className="text-xs font-bold text-emerald-300">Payment Verified & File Auto-Released!</div>
+                          <div className="text-xs font-bold text-emerald-300">Payment Confirmed & File Released</div>
                           <p className="text-[11px] text-[var(--text-muted)]">
-                            The Gamepass purchase was confirmed inside the Roblox Hub. The Client now has full download access to `{activeDeal.file_name}`.
+                            Transaction complete. Download access has been granted for `{activeDeal.file_name}`.
                           </p>
                         </div>
                       </div>
@@ -517,15 +532,15 @@ export default function MiddlemanPage() {
                     {activeDeal.status === 'DISPUTED' && (
                       <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-3">
                         <ShieldAlert className="w-5 h-5 text-rose-400 shrink-0" />
-                        <span className="text-xs font-bold text-rose-300">Deal Frozen / Cancelled — File Remains Locked</span>
+                        <span className="text-xs font-bold text-rose-300">Deal Flagged — Escrow Frozen</span>
                       </div>
                     )}
                   </div>
                 </div>
 
                 <div className="pt-4 border-t border-[var(--border-color)] flex items-center justify-between text-[11px] text-[var(--text-muted)]">
-                  <span>Your Role: {isDeveloper ? 'Developer (Seller)' : 'Client (Buyer)'}</span>
-                  <span>10% Hub Affiliate Auto-Release</span>
+                  <span>Role: {isDeveloper ? 'Developer (Seller)' : 'Client (Buyer)'}</span>
+                  <span>Roblox Inventory API Ownership Verification</span>
                 </div>
               </div>
             )}
@@ -533,13 +548,12 @@ export default function MiddlemanPage() {
         )}
       </div>
 
-      {/* CREATE DEAL MODAL */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl max-w-md w-full p-6 shadow-2xl">
             <h3 className="text-xl font-bold mb-1">Create Developer Deal</h3>
             <p className="text-xs text-[var(--text-muted)] mb-5">
-              Upload your Studio file and enter the Roblox Gamepass ID the Client will buy in our Hub game.
+              Upload the asset file and enter the Gamepass ID for payment verification.
             </p>
 
             <form onSubmit={handleCreateDealWithFile} className="space-y-4 text-xs">
@@ -548,7 +562,7 @@ export default function MiddlemanPage() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Custom Gun Framework"
+                  placeholder="e.g. Combat System Framework"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   className="w-full bg-[var(--bg-elevated)] border border-[var(--border-color)] rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-blue-500"
@@ -569,7 +583,7 @@ export default function MiddlemanPage() {
                   />
                 </div>
                 <div>
-                  <label className="block font-bold mb-1.5">Roblox Gamepass ID</label>
+                  <label className="block font-bold mb-1.5">Gamepass ID</label>
                   <input
                     type="text"
                     required
@@ -582,7 +596,7 @@ export default function MiddlemanPage() {
               </div>
 
               <div>
-                <label className="block font-bold mb-1.5">Attach Studio File (.rbxl, .rbxm)</label>
+                <label className="block font-bold mb-1.5">Attach Studio Deliverable (.rbxl, .rbxm)</label>
                 <label className="flex flex-col items-center justify-center border-2 border-dashed border-[var(--border-color)] hover:border-blue-500 rounded-xl p-4 cursor-pointer">
                   <Upload className="w-5 h-5 text-[var(--text-muted)] mb-1" />
                   <span className="text-xs font-semibold">
