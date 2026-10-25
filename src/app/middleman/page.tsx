@@ -10,16 +10,20 @@ import {
   KeyRound, 
   ShieldCheck, 
   CheckCircle2, 
-  FileBox,
-  Upload,
-  Copy,
-  Check,
-  SearchCheck,
-  Gamepad2,
-  Download,
-  ShieldAlert
+  FileBox, 
+  Upload, 
+  Copy, 
+  Check, 
+  SearchCheck, 
+  Gamepad2, 
+  Download, 
+  ShieldAlert,
+  ExternalLink
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+
+// REPLACE THIS WITH YOUR ROBLOX EXPERIENCE PLACE ID:
+const ROBLOX_PLACE_ID = "18513443246";
 
 interface Deal {
   id: string;
@@ -54,7 +58,7 @@ export default function MiddlemanPage() {
   const [copiedCode, setCopiedCode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // New Deal Form State (Created by Developer/Seller)
+  // New Deal Form State
   const [newTitle, setNewTitle] = useState('');
   const [newAmount, setNewAmount] = useState('');
   const [newGamepassId, setNewGamepassId] = useState('');
@@ -68,8 +72,7 @@ export default function MiddlemanPage() {
       return;
     }
     const parsed = JSON.parse(stored);
-    // Enforce compulsory Discord + Roblox login
-    if (!parsed.id || !parsed.robloxId) {
+    if (!parsed.id) {
       router.push('/login');
       return;
     }
@@ -136,7 +139,7 @@ export default function MiddlemanPage() {
             role: 'Developer',
             creator_discord_id: currentUser.id,
             creator_discord_username: currentUser.username,
-            creator_roblox_username: currentUser.robloxUsername,
+            creator_roblox_username: currentUser.robloxUsername || 'Developer',
             amount: Number(newAmount),
             currency: 'ROBUX',
             gamepass_id: newGamepassId.trim(),
@@ -175,7 +178,7 @@ export default function MiddlemanPage() {
           title: deal.title,
           fileName: deal.file_name,
           fileUrl: deal.file_url,
-          requestedBy: `${currentUser?.username} (@${currentUser?.robloxUsername})`,
+          requestedBy: `${currentUser?.username} (@${currentUser?.robloxUsername || 'Roblox'})`,
         }),
       });
 
@@ -195,7 +198,7 @@ export default function MiddlemanPage() {
 
   const activeDeal = deals.find((d) => d.id === selectedDealId) || deals[0];
 
-  // Determine exact role of the logged-in user for this specific deal
+  // Specific role resolution
   const isDeveloper = Boolean(currentUser && activeDeal && currentUser.id === activeDeal.creator_discord_id);
   const isClient = Boolean(currentUser && activeDeal && !isDeveloper);
 
@@ -203,6 +206,11 @@ export default function MiddlemanPage() {
     navigator.clipboard.writeText(code);
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 1500);
+  };
+
+  // Direct Roblox deep-link launcher with launchData
+  const getRobloxLaunchUrl = (code: string) => {
+    return `roblox://experiences/start?placeId=${ROBLOX_PLACE_ID}&launchData=${encodeURIComponent(code)}`;
   };
 
   return (
@@ -232,7 +240,7 @@ export default function MiddlemanPage() {
                     return;
                   }
                   if (data.creator_discord_id === currentUser.id) {
-                    alert('You are the Developer who created this deal!');
+                    alert('You created this deal as the Developer!');
                     return;
                   }
                   await supabase
@@ -240,7 +248,7 @@ export default function MiddlemanPage() {
                     .update({
                       partner_discord_id: currentUser.id,
                       partner_discord_username: currentUser.username,
-                      partner_roblox_username: currentUser.robloxUsername,
+                      partner_roblox_username: currentUser.robloxUsername || 'Client',
                     })
                     .eq('id', data.id);
                   fetchDeals(currentUser.id);
@@ -377,7 +385,7 @@ export default function MiddlemanPage() {
                     </div>
                   </div>
 
-                  {/* Strictly Gated Studio Deliverable Box */}
+                  {/* Studio Deliverable Box */}
                   <div className="py-6 border-b border-[var(--border-color)]">
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
@@ -399,7 +407,7 @@ export default function MiddlemanPage() {
                         </div>
                       </div>
 
-                      {/* ONLY Developer OR a Client on a COMPLETED deal can download! */}
+                      {/* Download Gate: Developer can redownload; Client can ONLY download when COMPLETED */}
                       {isDeveloper || activeDeal.status === 'COMPLETED' ? (
                         <a
                           href={activeDeal.file_url}
@@ -419,23 +427,33 @@ export default function MiddlemanPage() {
                     </div>
                   </div>
 
-                  {/* Role-Isolated Action Controls */}
+                  {/* Action Controls */}
                   <div className="py-6">
                     {activeDeal.status !== 'COMPLETED' && activeDeal.status !== 'DISPUTED' && (
                       <div className="space-y-4">
                         {isClient ? (
-                          /* CLIENT-ONLY UI */
+                          /* CLIENT-ONLY UI WITH THE "OPEN ROBLOX & PAY" BUTTON */
                           <div className="p-5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)] space-y-4">
                             <div className="flex items-start gap-3">
                               <Gamepad2 className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
                               <div>
                                 <div className="font-bold text-sm">Client Action: Pay in Roblox Hub to Auto-Unlock</div>
                                 <p className="text-xs text-[var(--text-muted)] mt-1 leading-relaxed">
-                                  1. Join our official Roblox Hub experience.<br />
-                                  2. Enter Deal Code <span className="text-blue-400 font-mono font-bold">{activeDeal.code}</span>.<br />
-                                  3. Purchase Gamepass ID <span className="text-blue-400 font-mono font-bold">{activeDeal.gamepass_id}</span>. The file above will unlock automatically!
+                                  Click below to launch the Roblox Hub game directly with deal code <span className="text-blue-400 font-mono font-bold">{activeDeal.code}</span>. Once you confirm the pass purchase inside the game, this file unlocks immediately.
                                 </p>
                               </div>
+                            </div>
+
+                            {/* THE MISSING LAUNCH BUTTON */}
+                            <div className="pt-2">
+                              <a
+                                href={getRobloxLaunchUrl(activeDeal.code)}
+                                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-lg shadow-blue-500/20 transition-all cursor-pointer"
+                              >
+                                <Gamepad2 className="w-4 h-4" />
+                                Open Roblox & Pay (Code: {activeDeal.code})
+                                <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+                              </a>
                             </div>
 
                             {activeDeal.status === 'STAFF_VERIFYING' && (
@@ -486,7 +504,7 @@ export default function MiddlemanPage() {
 
                     {activeDeal.status === 'COMPLETED' && (
                       <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-3">
-                        <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                        <CheckCircle2 className="w-5 h-5 text-emerald-400" />
                         <div>
                           <div className="text-xs font-bold text-emerald-300">Payment Verified & File Auto-Released!</div>
                           <p className="text-[11px] text-[var(--text-muted)]">
@@ -515,7 +533,7 @@ export default function MiddlemanPage() {
         )}
       </div>
 
-      {/* CREATE DEAL MODAL (DEVELOPER) */}
+      {/* CREATE DEAL MODAL */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl max-w-md w-full p-6 shadow-2xl">
@@ -555,7 +573,7 @@ export default function MiddlemanPage() {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. 948102348"
+                    placeholder="e.g. 749781448"
                     value={newGamepassId}
                     onChange={(e) => setNewGamepassId(e.target.value)}
                     className="w-full bg-[var(--bg-elevated)] border border-[var(--border-color)] rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-blue-500"
