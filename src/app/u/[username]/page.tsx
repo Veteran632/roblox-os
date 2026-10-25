@@ -1,9 +1,8 @@
 'use client';
 
-export const dynamic = 'force-dynamic';
-
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { 
   ShieldCheck, 
   Star, 
@@ -31,9 +30,11 @@ interface CompletedDeal {
   created_at: string;
 }
 
-export default function UserProfilePage({ params }: { params: Promise<{ username: string }> }) {
-  const resolvedParams = use(params);
-  const rawUsername = decodeURIComponent(resolvedParams?.username || '');
+function ProfileContent() {
+  const pathname = usePathname();
+  // Safely extract the username from "/u/[username]"
+  const rawSegment = pathname ? pathname.split('/u/')[1] || '' : '';
+  const rawUsername = decodeURIComponent(rawSegment.split('/')[0] || '');
 
   const [loading, setLoading] = useState(true);
   const [userInfo, setUserInfo] = useState<{
@@ -51,7 +52,10 @@ export default function UserProfilePage({ params }: { params: Promise<{ username
   });
 
   useEffect(() => {
-    if (!rawUsername) return;
+    if (!rawUsername) {
+      setLoading(false);
+      return;
+    }
 
     const fetchProfileData = async () => {
       setLoading(true);
@@ -65,7 +69,9 @@ export default function UserProfilePage({ params }: { params: Promise<{ username
 
       if (dealsData && dealsData.length > 0) {
         const first = dealsData[0];
-        const isCreator = first.creator_roblox_username?.toLowerCase() === rawUsername.toLowerCase();
+        const isCreator =
+          first.creator_roblox_username?.toLowerCase() === rawUsername.toLowerCase() ||
+          first.creator_discord_username?.toLowerCase() === rawUsername.toLowerCase();
 
         const discordUsername = isCreator 
           ? first.creator_discord_username 
@@ -87,24 +93,32 @@ export default function UserProfilePage({ params }: { params: Promise<{ username
         const totalRobux = completed.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
 
         // Fetch vouches for this developer
-        const { data: reviewsData } = await supabase
-          .from('reviews')
-          .select('*')
-          .eq('developer_discord_id', discordId)
-          .order('created_at', { ascending: false });
+        if (discordId) {
+          const { data: reviewsData } = await supabase
+            .from('reviews')
+            .select('*')
+            .eq('developer_discord_id', discordId)
+            .order('created_at', { ascending: false });
 
-        const revs = reviewsData || [];
-        setReviews(revs);
+          const revs = reviewsData || [];
+          setReviews(revs);
 
-        const avg = revs.length > 0 
-          ? (revs.reduce((acc, r) => acc + r.rating, 0) / revs.length)
-          : 5.0;
+          const avg = revs.length > 0 
+            ? (revs.reduce((acc, r) => acc + r.rating, 0) / revs.length)
+            : 5.0;
 
-        setStats({
-          totalRobuxVolume: totalRobux,
-          completedDealsCount: completed.length,
-          averageRating: Number(avg.toFixed(1)),
-        });
+          setStats({
+            totalRobuxVolume: totalRobux,
+            completedDealsCount: completed.length,
+            averageRating: Number(avg.toFixed(1)),
+          });
+        } else {
+          setStats({
+            totalRobuxVolume: totalRobux,
+            completedDealsCount: completed.length,
+            averageRating: 5.0,
+          });
+        }
       } else {
         setUserInfo({
           robloxUsername: rawUsername,
@@ -122,7 +136,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ username
   if (loading) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center text-xs text-[var(--text-muted)]">
-        Loading public reputation ledger...
+        Loading user profile & vouches...
       </div>
     );
   }
@@ -138,7 +152,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ username
         <div className="p-8 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-color)] mb-8 flex flex-wrap items-center justify-between gap-6">
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-2xl text-white shadow-lg shadow-blue-500/20">
-              {userInfo?.robloxUsername.charAt(0).toUpperCase()}
+              {userInfo?.robloxUsername ? userInfo.robloxUsername.charAt(0).toUpperCase() : 'U'}
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -285,5 +299,19 @@ export default function UserProfilePage({ params }: { params: Promise<{ username
         </div>
       </div>
     </div>
+  );
+}
+
+export default function UserProfilePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-[70vh] flex items-center justify-center text-xs text-[var(--text-muted)]">
+          Loading profile...
+        </div>
+      }
+    >
+      <ProfileContent />
+    </Suspense>
   );
 }
