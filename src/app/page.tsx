@@ -57,7 +57,7 @@ export default function HomePage() {
                 <RobloxVerifiedBadge className="w-5 h-5" />
               </div>
               <h3 className="font-semibold text-sm mb-1">Roblox Verified</h3>
-              <p className="text-xs text-[var(--text-muted)]">Celebrity and platform-recognized badge pulled straight from Roblox.</p>
+              <p className="text-xs text-[var(--text-muted)]">platform-recognized badge pulled straight from Roblox.</p>
             </div>
 
             <div className="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-elevated)]">
@@ -88,7 +88,7 @@ export default function HomePage() {
             </div>
             <h3 className="text-lg font-bold mb-2">Automated Middleman</h3>
             <p className="text-xs leading-relaxed text-[var(--text-muted)]">
-              Zero human bias. Funds lock into code before you touch Studio, and get released the moment the asset checks out.
+              Zero human bias. bobux lock into code before you touch Studio, and get released the moment the asset checks out.
             </p>
           </div>
 
@@ -114,7 +114,7 @@ export default function HomePage() {
               <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-muted)] border border-[var(--border-color)]">WIP</span>
             </div>
             <p className="text-xs leading-relaxed text-[var(--text-muted)]">
-              Organize your team, automate monthly group payouts, and keep sprint contracts in one place.
+              Organize your team, and keep contracts in one place.
             </p>
           </div>
         </div>
