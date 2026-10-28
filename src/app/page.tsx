@@ -1,10 +1,29 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Wrench, Lock, Boxes, Users } from 'lucide-react';
 import { RobloxVerifiedBadge } from './components/SiteShell';
+import { supabase } from '@/lib/supabase';
 
 export default function HomePage() {
+  const [robuxProcessed, setRobuxProcessed] = useState<number>(0);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      const { data } = await supabase
+        .from('deals')
+        .select('amount, status')
+        .eq('status', 'COMPLETED');
+
+      if (data) {
+        const total = data.reduce((sum, deal) => sum + (Number(deal.amount) || 0), 0);
+        setRobuxProcessed(total);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
   return (
     <div>
       {/* 1. HERO SECTION */}
@@ -69,7 +88,7 @@ export default function HomePage() {
             </div>
             <h3 className="text-lg font-bold mb-2">Automated Middleman</h3>
             <p className="text-xs leading-relaxed text-[var(--text-muted)]">
-              Zero human bias. Funds lock into code before you touch Studio, and get released the moment the deliverable checks out.
+              Zero human bias. Funds lock into code before you touch Studio, and get released the moment the asset checks out.
             </p>
           </div>
 
@@ -105,7 +124,9 @@ export default function HomePage() {
       <section className="max-w-5xl mx-auto px-6 py-8">
         <div className="p-6 rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] flex flex-wrap items-center justify-around gap-6 text-center">
           <div>
-            <div className="text-2xl font-black text-blue-400">0</div>
+            <div className="text-2xl font-black text-blue-400">
+              {robuxProcessed.toLocaleString()}
+            </div>
             <div className="text-xs text-[var(--text-muted)] mt-0.5">Robux Processed</div>
           </div>
           <div className="w-px h-8 bg-[var(--border-color)] hidden md:block" />
