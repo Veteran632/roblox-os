@@ -21,7 +21,8 @@ import {
   ShoppingBag,
   Star,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  FileWarning
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
@@ -46,9 +47,12 @@ interface Deal {
   staff_verified: boolean;
   staff_review_result?: 'APPROVED' | 'REJECTED' | null;
   dispute_action?: string;
+  dispute_reason?: string;
+  dispute_proof_url?: string;
 }
 
 const ALLOWED_EXTENSIONS = ['.rbxl', '.rbxlx', '.rbxm', '.rbxmx'];
+const ALLOWED_PROOF_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.mp4', '.mov'];
 
 export default function MiddlemanPage() {
   const router = useRouter();
@@ -63,9 +67,11 @@ export default function MiddlemanPage() {
   // Download Link State (Single-use & 15m)
   const [downloadLoading, setDownloadLoading] = useState(false);
 
-  // Dispute Flag Modal State
+  // Dispute Flag Modal State (Compulsory Proof)
   const [showDisputeModal, setShowDisputeModal] = useState(false);
   const [disputeReason, setDisputeReason] = useState('');
+  const [disputeProofFile, setDisputeProofFile] = useState<File | null>(null);
+  const [proofError, setProofError] = useState('');
 
   // Review & Vouch State
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -166,6 +172,27 @@ export default function MiddlemanPage() {
     setSelectedFile(file);
   };
 
+  const handleProofFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setProofError('');
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const isValid = ALLOWED_PROOF_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext));
+    if (!isValid) {
+      setProofError('Please upload an image or video (.png, .jpg, .webp, .gif, .mp4, .mov)');
+      setDisputeProofFile(null);
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      setProofError('Proof file must be under 25 MB');
+      setDisputeProofFile(null);
+      e.target.value = '';
+      return;
+    }
+    setDisputeProofFile(file);
+  };
+
   const handleCreateDealWithFile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle || !newAmount || !newGamepassId || !selectedFile || !currentUser) return;
@@ -244,7 +271,6 @@ export default function MiddlemanPage() {
         throw new Error(data.error || 'Failed to generate secure link');
       }
 
-      // Open single-use URL in fresh tab to consume & download
       window.open(data.downloadLink, '_blank');
     } catch (err: any) {
       alert('Download error: ' + err.message);
@@ -283,31 +309,63 @@ export default function MiddlemanPage() {
 
   const handleSubmitDispute = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeDeal || !disputeReason) return;
+    if (!activeDeal || !disputeReason.trim() || !disputeProofFile) {
+      setProofError('Uploading screenshot or video evidence is compulsory.');
+      return;
+    }
     setIsSubmitting(true);
 
     try {
-      await fetch('/api/notify-dispute', {
+      // 1. Upload compulsory proof to Supabase storage
+      const proofExt = disputeProofFile.name.split('.').pop();
+      const proofPath = `disputes/${activeDeal.code}_${Date.now()}.${proofExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('deliverables')
+        .upload(proofPath, disputeProofFile);
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicProofData } = supabase.storage
+        .from('deliverables')
+        .getPublicUrl(proofPath);
+
+      const proofUrl = publicProofData.publicUrl;
+
+      // 2. Notify staff in Discord with proof & resolution buttons
+      const notifyRes = await fetch('/api/notify-dispute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           dealCode: activeDeal.code,
           title: activeDeal.title,
           flaggedBy: `${currentUser?.username} (@${currentUser?.robloxUsername || 'Roblox'})`,
-          reason: disputeReason,
+          reason: disputeReason.trim(),
           fileUrl: activeDeal.file_url,
+          proofUrl,
         }),
       });
 
+      if (!notifyRes.ok) {
+        const errData = await notifyRes.json();
+        throw new Error(errData.error || 'Failed to notify staff');
+      }
+
+      // 3. Update deal record in Supabase
       await supabase
         .from('deals')
-        .update({ status: 'DISPUTED', dispute_reason: disputeReason })
+        .update({
+          status: 'DISPUTED',
+          dispute_reason: disputeReason.trim(),
+          dispute_proof_url: proofUrl,
+        })
         .eq('id', activeDeal.id);
 
       fetchDeals(currentUser.id);
       setShowDisputeModal(false);
       setDisputeReason('');
-      alert('Deal flagged! Staff has been alerted in Discord with resolution actions.');
+      setDisputeProofFile(null);
+      alert('Deal flagged with proof! Staff has been alerted in Discord.');
     } catch (err: any) {
       alert('Error submitting dispute: ' + err.message);
     } finally {
@@ -737,14 +795,28 @@ export default function MiddlemanPage() {
 
                     {/* DISPUTED Deal State */}
                     {activeDeal.status === 'DISPUTED' && (
-                      <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-3">
-                        <ShieldAlert className="w-5 h-5 text-rose-400 shrink-0" />
-                        <div>
-                          <span className="text-xs font-bold text-rose-300">Dispute Under Staff Investigation</span>
-                          <p className="text-[11px] text-[var(--text-muted)]">
-                            Staff has been alerted in Discord. Waiting for staff resolution: Force-Unlock or Cancellation.
-                          </p>
+                      <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between flex-wrap gap-4">
+                        <div className="flex items-center gap-3">
+                          <ShieldAlert className="w-5 h-5 text-rose-400 shrink-0" />
+                          <div>
+                            <span className="text-xs font-bold text-rose-300">Dispute Under Staff Investigation</span>
+                            <p className="text-[11px] text-[var(--text-muted)]">
+                              Reason: {activeDeal.dispute_reason || 'Flagged for staff review.'}
+                            </p>
+                          </div>
                         </div>
+
+                        {activeDeal.dispute_proof_url && (
+                          <a
+                            href={activeDeal.dispute_proof_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-3.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-bold flex items-center gap-1.5"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            View Uploaded Proof
+                          </a>
+                        )}
                       </div>
                     )}
 
@@ -854,7 +926,7 @@ export default function MiddlemanPage() {
         </div>
       )}
 
-      {/* DISPUTE MODAL */}
+      {/* DISPUTE MODAL WITH COMPULSORY PROOF UPLOAD */}
       {showDisputeModal && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl max-w-md w-full p-6 shadow-2xl">
@@ -863,36 +935,65 @@ export default function MiddlemanPage() {
               Flag / Dispute Middleman Deal
             </h3>
             <p className="text-xs text-[var(--text-muted)] mb-5">
-              Explain why you are flagging this deal. Staff will inspect the asset and be given one-click resolution actions in Discord.
+              Explain why you are flagging this deal and attach compulsory proof. Staff will inspect both the proof and the asset in Discord.
             </p>
 
             <form onSubmit={handleSubmitDispute} className="space-y-4 text-xs">
               <div>
-                <label className="block font-bold mb-1.5">Dispute Reason</label>
+                <label className="block font-bold mb-1.5">
+                  Dispute Reason <span className="text-rose-400">*</span>
+                </label>
                 <textarea
                   required
-                  rows={4}
-                  placeholder="Explain the issue (e.g., pass purchased but asset missing scripts, wrong model, unresponsive seller)..."
+                  rows={3}
+                  placeholder="Explain the issue (e.g., pass purchased but asset missing scripts, broken model, unresponsive seller)..."
                   value={disputeReason}
                   onChange={(e) => setDisputeReason(e.target.value)}
                   className="w-full bg-[var(--bg-elevated)] border border-[var(--border-color)] rounded-xl p-3 focus:outline-none focus:border-rose-500"
                 />
               </div>
 
+              <div>
+                <label className="block font-bold mb-1.5 flex items-center justify-between">
+                  <span>Upload Proof Screenshot / Video <span className="text-rose-400">* (Compulsory)</span></span>
+                  <span className="text-[10px] font-normal text-[var(--text-muted)]">Max 25MB</span>
+                </label>
+                <label className="flex flex-col items-center justify-center border-2 border-dashed border-[var(--border-color)] hover:border-rose-500 rounded-xl p-4 cursor-pointer transition-colors">
+                  <FileWarning className="w-5 h-5 text-rose-400 mb-1" />
+                  <span className="text-xs font-semibold text-center">
+                    {disputeProofFile
+                      ? `✅ ${disputeProofFile.name}`
+                      : 'Click to upload required screenshot or video (.png, .jpg, .mp4)'}
+                  </span>
+                  <input
+                    type="file"
+                    required
+                    accept=".png,.jpg,.jpeg,.webp,.gif,.mp4,.mov"
+                    onChange={handleProofFileChange}
+                    className="hidden"
+                  />
+                </label>
+                {proofError && <p className="text-rose-400 text-[11px] mt-1 font-semibold">{proofError}</p>}
+              </div>
+
               <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-color)]">
                 <button
                   type="button"
-                  onClick={() => setShowDisputeModal(false)}
+                  onClick={() => {
+                    setShowDisputeModal(false);
+                    setDisputeProofFile(null);
+                    setProofError('');
+                  }}
                   className="px-4 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)] cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold disabled:opacity-50 cursor-pointer"
+                  disabled={isSubmitting || !disputeReason.trim() || !disputeProofFile}
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  {isSubmitting ? 'Flagging...' : 'Send Dispute to Staff'}
+                  {isSubmitting ? 'Uploading Proof & Flagging...' : 'Send Dispute to Staff'}
                 </button>
               </div>
             </form>
